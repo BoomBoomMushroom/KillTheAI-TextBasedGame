@@ -111,8 +111,14 @@
 </div>
 
 <div id="inLobby" class="hidden">
-    <center>
+    <center id="pregame">
         <h3 id="gameCode">XXXXXX</h3>
+        <h4 id="playerCount">Players: 1</h4>
+    </center>
+
+    <center id="pregame">
+        <h3 id="gameCode">XXXXXX</h3>
+        <h4 id="playerCount">Players: 1</h4>
     </center>
 </div>
 
@@ -184,7 +190,8 @@
     var myCode = generateShortCode(6)
     var connection = null
 
-    var clients = []
+    var clients = {}
+    var choosingPromptId = null
 
     function generateShortCode(length = 5) {
         const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -202,6 +209,9 @@
         document.getElementById("removeAiToken").classList.add("hidden")
         document.getElementById("gameCode").innerHTML = lobbyCode
     }
+    function setLobbyPopulation(population){
+        document.getElementById("playerCount").innerHTML = "Players: " + population
+    }
 
     function host(){
         if(token == "") { return }
@@ -213,9 +223,7 @@
         })
     }
     function join(roomID){
-        if(roomID == null){
-            roomID = getCode()
-        }
+        if(roomID == null){ roomID = getCode() }
         roomID = roomID.toUpperCase()
         connection = peer.connect(roomID)
         //console.log(connection)
@@ -227,22 +235,73 @@
     }
 
 
+    function getClientIds(){
+        return Object.keys(clients)
+    }
+    function sendToClient(connectionId, data){
+        client = clients[connectionId]
+        if(client == null){ return false }
+        client.send(data)
+        return true
+    }
+    function sendToEveryone(data){
+        clientIds = getClientIds()
+        for(let i=0; i<clientIds.length; i++){
+            clientId = clientIds[i]
+            sendToClient(clientId, data)
+        }
+    }
+
+
+    function updatePopulation(){
+        lobbyPop = getClientIds().length + 1
+        data = {
+            "command": "populate",
+            "parameters": [lobbyPop]
+        }
+
+        setLobbyPopulation(lobbyPop)
+        sendToEveryone(JSON.stringify(data))
+    }
+
+
     function onData(data){
         jsonData = JSON.parse(data)
+        command = jsonData["command"]
+
+        switch(command){
+            case "populate":
+                setLobbyPopulation(jsonData["parameters"][0])
+                break
+            case "setName":
+                clients[jsonData["id"]].username = jsonData["parameters"][0]
+                break
+        }
         console.log(jsonData)
     }
 
     function connectionOpen(){
         startupData = {
-            "username": "BBM",
             "id": connection.connectionId,
+            "command": "setName",
+            "parameters": ["BBM"],
         }
         connection.send(JSON.stringify(startupData))
         setLobbyToVisible(connection.peer)
     }
 
     function onConnection(conn){
-        clients.push(conn.connectionId)
+        id = conn.connectionId
+        conn.on('open', ()=>{
+            console.log(id + " has joined")
+            clients[id] = conn
+            updatePopulation()
+        })
+        conn.on('close', ()=>{
+            console.log(id + " has left")
+            delete clients[conn.connectionId]
+            updatePopulation()
+        })
         conn.on('data', onData)
     }
 </script>
