@@ -3,6 +3,9 @@
         body{
             background-color: #333333;
             color: white;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
         }
         .hidden{
             display: none;
@@ -12,6 +15,56 @@
             left: 0px;
             bottom: 0px;
         }
+
+        
+        .container {
+            text-align: center;
+        }
+
+        .container h1 {
+            margin-bottom: 20px;
+        }
+
+        .code-inputs {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .code-inputs input {
+            width: 40px;
+            height: 40px;
+            text-align: center;
+            font-size: 18px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .code-inputs input:focus {
+            border-color: #007bff;
+        }
+
+
+        .join-button {
+            padding: 10px 20px;
+            font-size: 12px;
+            color: #fff;
+            background-color: #007bff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .join-button:hover {
+            background-color: #0056b3;
+        }
+
+        .join-button:disabled {
+            background-color: #6d8195;
+        }
     </style>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
@@ -20,7 +73,7 @@
     <h1><strong>Kill the AI</strong></h1>
 </center>
 
-<button id="removeAiToken" class="hidden bottomLeft" onclick="removeToken()">Remove token</button>
+<button id="removeAiToken" class="hidden bottomLeft join-button" onclick="removeToken()">Remove token</button>
 
 <div id="noAiTokenSet" class="hidden">
     <center>
@@ -28,7 +81,8 @@
         <label for="tokenInput">Enter your <strong>Google Gemini</strong> token.<br>Don't worry we won't share this with anybody. If you ever need to remove your token click the button in the bottom left</label>
         <br>
         <input name="tokenInput" id="tokenInput" placeholder="Google Gemini">
-        <button onclick="submitToken()">Submit Token</button>
+        <button onclick="submitToken()" class="join-button">Submit Token</button>
+        <br>
         <br>
         <br>
     </center>
@@ -36,10 +90,29 @@
 
 <div id="menu" class="">
     <center>
-        <button onclick="host()">Host Game</button>
+        <button onclick="host()" id="hostGameButton" class="join-button">Host Game</button>
         <br>
         <br>
-        <button onclick="join()">Join Game</button>
+        <button onclick="join()" class="join-button">Join Game</button>
+        <br>
+        <br>
+
+        <div class="container">
+            <div class="code-inputs">
+                <input type="text" maxlength="1" />
+                <input type="text" maxlength="1" />
+                <input type="text" maxlength="1" />
+                <input type="text" maxlength="1" />
+                <input type="text" maxlength="1" />
+                <input type="text" maxlength="1" />
+            </div>
+        </div>
+    </center>
+</div>
+
+<div id="inLobby" class="hidden">
+    <center>
+        <h3 id="gameCode">XXXXXX</h3>
     </center>
 </div>
 
@@ -68,12 +141,11 @@
     }
 </script>
 
-<!-- Token setup and cookies -->
+<!--  Token setup and cookies  -->
 <script>
     let token = getCookie("geminiToken")
     if(token == ""){
-        // Wah user doesn't have a token
-        document.getElementById("noAiTokenSet").classList.remove("hidden")
+        noToken()
     }
     else{
         token = btoa(token)
@@ -83,7 +155,12 @@
     function weHaveToken(){
         document.getElementById("noAiTokenSet").classList.add("hidden")
         document.getElementById("removeAiToken").classList.remove("hidden")
-        //document.getElementById("menu").classList.remove("hidden")
+        document.getElementById("hostGameButton").disabled = false
+    }
+    function noToken(){
+        document.getElementById("noAiTokenSet").classList.remove("hidden")
+        document.getElementById("removeAiToken").classList.add("hidden")
+        document.getElementById("hostGameButton").disabled = true
     }
 
     function submitToken(){
@@ -91,13 +168,13 @@
         if(token != ""){
             setCookie("geminiToken", btoa(token), 9999)
             weHaveToken()
+            document.getElementById("tokenInput").value = ""
         }
     }
 
     function removeToken(){
         setCookie("geminiToken", "", 1)
-        document.getElementById("noAiTokenSet").classList.remove("hidden")
-        document.getElementById("removeAiToken").classList.add("hidden")
+        noToken()
     }
 </script>
 
@@ -106,6 +183,8 @@
     var peer = new Peer();
     var myCode = generateShortCode(6)
     var connection = null
+
+    var clients = []
 
     function generateShortCode(length = 5) {
         const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -116,33 +195,92 @@
         return code;
     }
 
+    function setLobbyToVisible(lobbyCode){
+        document.getElementById("inLobby").classList.remove("hidden")
+        document.getElementById("menu").classList.add("hidden")
+        document.getElementById("noAiTokenSet").classList.add("hidden")
+        document.getElementById("removeAiToken").classList.add("hidden")
+        document.getElementById("gameCode").innerHTML = lobbyCode
+    }
+
     function host(){
+        if(token == "") { return }
         peer = new Peer(myCode)
         peer.on('connection', onConnection)
         peer.on('open', ()=>{
             console.log("Hosting with Room Code: " + myCode)
+            setLobbyToVisible(myCode)
         })
     }
     function join(roomID){
+        if(roomID == null){
+            roomID = getCode()
+        }
         roomID = roomID.toUpperCase()
         connection = peer.connect(roomID)
+        //console.log(connection)
+        if(connection == null){
+            alert("Connection Error! Try again...")
+        }
         connection.on('open', connectionOpen)
+        connection.on('data', onData)
     }
 
+
+    function onData(data){
+        jsonData = JSON.parse(data)
+        console.log(jsonData)
+    }
 
     function connectionOpen(){
         startupData = {
             "username": "BBM",
-            "id": peer.id,
+            "id": connection.connectionId,
         }
         connection.send(JSON.stringify(startupData))
+        setLobbyToVisible(connection.peer)
     }
 
     function onConnection(conn){
-        conn.on('data', (data)=>{
-            jsonData = JSON.parse(data)
-            console.log(jsonData)
-            //console.log(conn.id + " has sent data: " + data)
-        })
+        clients.push(conn.connectionId)
+        conn.on('data', onData)
     }
+</script>
+
+<!--  Move selected input across the code enter  -->
+<script>
+    const inputs = document.querySelectorAll('.code-inputs input');
+
+    function getCode(){
+        out = ""
+        inputs.forEach((input, index) => {
+            out += input.value
+        })
+        return out
+    }
+
+    inputs.forEach((input, index) => {
+        input.addEventListener('input', (e) => {
+            if (e.target.value.length == 1 && index < inputs.length - 1) {
+                inputs[index + 1].focus();
+            }
+        });
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key == 'Backspace' && e.target.value.length == 0 && index > 0) {
+                inputs[index - 1].focus();
+            }
+        });
+
+        input.addEventListener('paste', (e) => {
+            e.preventDefault()
+
+            let paste = (event.clipboardData || window.clipboardData).getData("text")
+            console.log(paste)
+            inputs.forEach((input, index) => {
+                if(index >= paste.length){ return }
+                input.value = paste[index]
+            })
+        })
+    });
 </script>
