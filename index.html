@@ -1,0 +1,148 @@
+<head>
+    <style>
+        body{
+            background-color: #333333;
+            color: white;
+        }
+        .hidden{
+            display: none;
+        }
+        .bottomLeft{
+            position: absolute;
+            left: 0px;
+            bottom: 0px;
+        }
+    </style>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+</head>
+
+<center>
+    <h1><strong>Kill the AI</strong></h1>
+</center>
+
+<button id="removeAiToken" class="hidden bottomLeft" onclick="removeToken()">Remove token</button>
+
+<div id="noAiTokenSet" class="hidden">
+    <center>
+        <h3>Looks like you haven't set a Google Gemini token! Only the host needs this token!</h3>
+        <label for="tokenInput">Enter your <strong>Google Gemini</strong> token.<br>Don't worry we won't share this with anybody. If you ever need to remove your token click the button in the bottom left</label>
+        <br>
+        <input name="tokenInput" id="tokenInput" placeholder="Google Gemini">
+        <button onclick="submitToken()">Submit Token</button>
+        <br>
+        <br>
+    </center>
+</div>
+
+<div id="menu" class="">
+    <center>
+        <button onclick="host()">Host Game</button>
+        <br>
+        <br>
+        <button onclick="join()">Join Game</button>
+    </center>
+</div>
+
+<!--  Setup global functions like cookies  -->
+<script>
+    function setCookie(cname, cvalue, exdays) {
+        const d = new Date();
+        d.setTime(d.getTime() + (exdays*24*60*60*1000));
+        let expires = "expires="+ d.toUTCString();
+        document.cookie = cname + "=" + cvalue + ";" + expires + ";path=/";
+    }
+    function getCookie(cname) {
+        let name = cname + "=";
+        let decodedCookie = decodeURIComponent(document.cookie);
+        let ca = decodedCookie.split(';');
+        for(let i = 0; i <ca.length; i++) {
+            let c = ca[i];
+            while (c.charAt(0) == ' ') {
+                c = c.substring(1);
+            }
+            if (c.indexOf(name) == 0) {
+                return c.substring(name.length, c.length);
+            }
+        }
+        return "";
+    }
+</script>
+
+<!-- Token setup and cookies -->
+<script>
+    let token = getCookie("geminiToken")
+    if(token == ""){
+        // Wah user doesn't have a token
+        document.getElementById("noAiTokenSet").classList.remove("hidden")
+    }
+    else{
+        token = btoa(token)
+        weHaveToken()
+    }
+
+    function weHaveToken(){
+        document.getElementById("noAiTokenSet").classList.add("hidden")
+        document.getElementById("removeAiToken").classList.remove("hidden")
+        //document.getElementById("menu").classList.remove("hidden")
+    }
+
+    function submitToken(){
+        token = document.getElementById("tokenInput").value
+        if(token != ""){
+            setCookie("geminiToken", btoa(token), 9999)
+            weHaveToken()
+        }
+    }
+
+    function removeToken(){
+        setCookie("geminiToken", "", 1)
+        document.getElementById("noAiTokenSet").classList.remove("hidden")
+        document.getElementById("removeAiToken").classList.add("hidden")
+    }
+</script>
+
+<!--  Networking  -->
+<script>
+    var peer = new Peer();
+    var myCode = generateShortCode(6)
+    var connection = null
+
+    function generateShortCode(length = 5) {
+        const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        let code = '';
+        for (let i = 0; i < length; i++) {
+            code += characters.charAt(Math.floor(Math.random() * characters.length));
+        }
+        return code;
+    }
+
+    function host(){
+        peer = new Peer(myCode)
+        peer.on('connection', onConnection)
+        peer.on('open', ()=>{
+            console.log("Hosting with Room Code: " + myCode)
+        })
+    }
+    function join(roomID){
+        roomID = roomID.toUpperCase()
+        connection = peer.connect(roomID)
+        connection.on('open', connectionOpen)
+    }
+
+
+    function connectionOpen(){
+        startupData = {
+            "username": "BBM",
+            "id": peer.id,
+        }
+        connection.send(JSON.stringify(startupData))
+    }
+
+    function onConnection(conn){
+        conn.on('data', (data)=>{
+            jsonData = JSON.parse(data)
+            console.log(jsonData)
+            //console.log(conn.id + " has sent data: " + data)
+        })
+    }
+</script>
