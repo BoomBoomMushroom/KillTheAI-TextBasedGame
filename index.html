@@ -116,9 +116,16 @@
         <h4 id="playerCount">Players: 1</h4>
     </center>
 
-    <center id="pregame">
-        <h3 id="gameCode">XXXXXX</h3>
-        <h4 id="playerCount">Players: 1</h4>
+    <center id="enterPrompt">
+        
+    </center>
+
+    <center id="results">
+        
+    </center>
+
+    <center id="score">
+        
     </center>
 </div>
 
@@ -191,6 +198,7 @@
     var connection = null
 
     var clients = {}
+    var names = []
     var choosingPromptId = null
 
     function generateShortCode(length = 5) {
@@ -208,6 +216,16 @@
         document.getElementById("noAiTokenSet").classList.add("hidden")
         document.getElementById("removeAiToken").classList.add("hidden")
         document.getElementById("gameCode").innerHTML = lobbyCode
+    }
+    function addPlayer(conn){
+        console.log(id + " has joined")
+        clients[id] = conn
+        updatePopulation()
+    }
+    function removePlayer(conn){
+        console.log(id + " has left")
+        delete clients[conn.connectionId]
+        updatePopulation()
     }
     function setLobbyPopulation(population){
         document.getElementById("playerCount").innerHTML = "Players: " + population
@@ -274,7 +292,15 @@
                 setLobbyPopulation(jsonData["parameters"][0])
                 break
             case "setName":
-                clients[jsonData["id"]].username = jsonData["parameters"][0]
+                let username = jsonData["parameters"][0]
+                let repeats = 0
+                for(let i=0; i<names.length; i++){
+                    if(names[i].split(" ")[0] == username){ repeats++ }
+                }
+                if(repeats > 0){ username += " " + (repeats+1) }
+
+                clients[jsonData["id"]].username = username
+                names.push(username)
                 break
         }
         console.log(jsonData)
@@ -293,14 +319,10 @@
     function onConnection(conn){
         id = conn.connectionId
         conn.on('open', ()=>{
-            console.log(id + " has joined")
-            clients[id] = conn
-            updatePopulation()
+            addPlayer()
         })
         conn.on('close', ()=>{
-            console.log(id + " has left")
-            delete clients[conn.connectionId]
-            updatePopulation()
+            removePlayer()
         })
         conn.on('data', onData)
     }
