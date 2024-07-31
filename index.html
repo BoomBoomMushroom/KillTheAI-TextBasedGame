@@ -65,7 +65,7 @@
         <h2 id="choosePromptCountdown">60</h2>
         <textarea type="text" class="actionInput" id="promptTextbox" placeholder="The AI is stuck on a volcano..." maxlength="140"></textarea>
         <div class="characterCount" id="promptCount">0/140</div>
-        <button onclick="submitPrompt()" disabled id="submitPromptButton" class="join-button">SUBMIT</button>
+        <button onclick="submitPrompt()" id="submitPromptButton" class="join-button">SUBMIT</button>
     </center>
 
     <center id="typeResponse">
@@ -74,7 +74,13 @@
         <h2 id="typeResponseCountdown">60</h2>
         <textarea type="text" class="actionInput" id="responseTextbox" placeholder="You will kill the AI by..." maxlength="140"></textarea>
         <div class="characterCount" id="responseCount">0/140</div>
-        <button onclick="startGame()" disabled id="submitResponseButton" class="join-button">SUBMIT</button>
+        <button onclick="submitResponse()" id="submitResponseButton" class="join-button">SUBMIT</button>
+    </center>
+
+    <center id="aiTellStory">
+        <h3 id="tellStoryTitle">USERNAME ATTEMPTS TO KILL THE AI BY</h3>
+        <textarea type="text" class="actionInput" id="tellStoryTextbox" disabled></textarea>
+        <button onclick="nextResponse()" id="nextResponseButton" class="join-button">NEXT</button>
     </center>
 
     <center id="score" class="scoreContainer hidden">
@@ -157,19 +163,21 @@
 <!--  Networking  -->
 <script>
     var peer = new Peer();
-    var myUsername = "Host"
+    var myUsername = "Guest"
     var maxUsernameLength = 16
     var myCode = generateShortCode(6)
     var connection = null
     var areWeInGame = false
 
     var clients = {}
+    var responses = {}
     var names = []
     var choosingPromptName = null
     var rounds = 5
     var currentRound = 0
     
     const timeToCraftPrompt = 60
+    const timeToRespond = 60
 
     var countdown = 0
     var countdownInterval = null
@@ -202,60 +210,71 @@
         document.getElementById("typeResponse").classList.add("hidden")
         document.getElementById("score").classList.add("hidden")
         document.getElementById("whoIsChoosingPrompt").classList.add("hidden")
+        document.getElementById("aiTellStory").classList.add("hidden")
     }
-
     function openPregame(){
         document.getElementById("pregame").classList.remove("hidden")
         document.getElementById("enterPrompt").classList.add("hidden")
         document.getElementById("whoIsChoosingPrompt").classList.add("hidden")
         document.getElementById("typeResponse").classList.add("hidden")
         document.getElementById("score").classList.add("hidden")
+        document.getElementById("aiTellStory").classList.add("hidden")
     }
-
     function openPrompt(){
         document.getElementById("pregame").classList.add("hidden")
         document.getElementById("enterPrompt").classList.remove("hidden")
         document.getElementById("whoIsChoosingPrompt").classList.add("hidden")
         document.getElementById("typeResponse").classList.add("hidden")
         document.getElementById("score").classList.add("hidden")
+        document.getElementById("aiTellStory").classList.add("hidden")
     }
-    
     function openWaitForPrompt(){
         document.getElementById("pregame").classList.add("hidden")
         document.getElementById("enterPrompt").classList.add("hidden")
         document.getElementById("whoIsChoosingPrompt").classList.remove("hidden")
         document.getElementById("typeResponse").classList.add("hidden")
         document.getElementById("score").classList.add("hidden")
+        document.getElementById("aiTellStory").classList.add("hidden")
     }
-
     function openResponse(){
         document.getElementById("pregame").classList.add("hidden")
         document.getElementById("enterPrompt").classList.add("hidden")
         document.getElementById("whoIsChoosingPrompt").classList.add("hidden")
         document.getElementById("typeResponse").classList.remove("hidden")
         document.getElementById("score").classList.add("hidden")
+        document.getElementById("aiTellStory").classList.add("hidden")
     }
-
     function openScore(){
         document.getElementById("pregame").classList.add("hidden")
         document.getElementById("enterPrompt").classList.add("hidden")
         document.getElementById("whoIsChoosingPrompt").classList.add("hidden")
         document.getElementById("typeResponse").classList.add("hidden")
         document.getElementById("score").classList.remove("hidden")
+        document.getElementById("aiTellStory").classList.add("hidden")
     }
-
+    function openStory(){
+        document.getElementById("pregame").classList.add("hidden")
+        document.getElementById("enterPrompt").classList.add("hidden")
+        document.getElementById("whoIsChoosingPrompt").classList.add("hidden")
+        document.getElementById("typeResponse").classList.add("hidden")
+        document.getElementById("score").classList.add("hidden")
+        document.getElementById("aiTellStory").classList.remove("hidden")
+    }
 
     function startTimer(amountOfTime, countdownElement, timesUpFunction){
         countdown = amountOfTime
         countdownInterval = setInterval(()=>{
             countdown -= 1
-            if(countdown < 0){
+            if(countdown <= 0){
                 clearInterval(countdownInterval)
                 timesUpFunction()
             }
 
             countdownElement.innerText = countdown
         }, 1000)
+    }
+    function stopTimer(){
+        clearInterval(countdownInterval)
     }
 
 
@@ -392,6 +411,13 @@
     }
 
 
+    function receivePrompt(promptString){
+        document.getElementById("responseTextbox").value = ""
+        document.getElementById("promptResponseText").innerText = promptString
+        openResponse()
+        getResponses()
+    }
+
     function sendPrompt(prompt){
         document.getElementById("promptTextbox").value = ""
 
@@ -401,9 +427,12 @@
         })
 
         if(connection != null){
+            // we're not the host. send it to them
             connection.send(data)
+            console.log(data, prompt)
         }
         else{
+            receivePrompt(prompt)
             sendToEveryone(data)
         }
     }
@@ -411,7 +440,8 @@
     function submitPrompt(){
         promptData = document.getElementById("promptTextbox").value
         if(promptData == ""){ promptData = "The AI is on the edge of a volcano!" }
-        
+        stopTimer()
+
         sendPrompt(promptData)
     }
 
@@ -419,13 +449,15 @@
     function updatePromptPage(choosingPromptName){
         if(myUsername == choosingPromptName){
             openPrompt()
-            startTimer(2, document.getElementById("choosePromptCountdown"), submitPrompt)
+            startTimer(timeToCraftPrompt, document.getElementById("choosePromptCountdown"), submitPrompt)
         }
         else{
             document.getElementById("whoIsChoosingPrompt").innerText = choosingPromptName.toUpperCase() + " IS CHOOSING THE PROMPT"
             openWaitForPrompt()
         }
     }
+
+
 
 
     function sendResponse(response){
@@ -437,24 +469,34 @@
         })
 
         if(connection != null){
+            // not the host send it to them
             connection.send(data)
         }
         else{
-            sendToEveryone(data)
+            // we are the host. we don't give it to everyone else, we just pretend that we're another player
+            receiveResponse(response, myUsername)
         }
     }
 
     function submitResponse(){
         responseData = document.getElementById("responseTextbox").value
         if(responseData == ""){ responseData = "I didn't write anything or time ran out!" }
-        
+        stopTimer()
         sendResponse(responseData)
     }
 
 
     function getResponses(promptData){
-        startTimer(2, document.getElementById("choosePromptCountdown"), submitPrompt)
+        startTimer(timeToRespond, document.getElementById("typeResponseCountdown"), submitResponse)
         openResponse()
+    }
+
+    function receiveResponse(responseData, username){
+        responses[username] = responseData
+        submittedNames = Object.keys(responses)
+        if(submittedNames.length == names.length){
+            console.log(responses)
+        }
     }
 
 
@@ -470,7 +512,7 @@
     }
 
 
-    function onData(data){
+    function onData(data, id){
         jsonData = JSON.parse(data)
         command = jsonData["command"]
 
@@ -526,16 +568,17 @@
             case "sendPrompt":
                 promptString = jsonData["parameters"][0]
                 if(connection == null){
+                    // we are the host. so let's relay this prompt info to everyone
                     sendToEveryone(JSON.stringify({
                         "command": "sendPrompt",
                         "parameters": [promptString]
                     }))
                 }
-
-                document.getElementById("responseTextbox").value = ""
-                document.getElementById("promptResponseText").innerText = promptString
-                openResponse()
-
+                receivePrompt(promptString)
+                break
+            case "sendResponse":
+                responseString = jsonData["parameters"][0]
+                receiveResponse(responseString, clients[id].username)
                 break
         }
         console.log(jsonData)
@@ -560,7 +603,9 @@
         conn.on('close', ()=>{
             removePlayer(conn)
         })
-        conn.on('data', onData)
+        conn.on('data', (data)=>{
+            onData(data, id)
+        })
     }
 
 
@@ -581,6 +626,10 @@
     responseInput.addEventListener("input", (e)=>{
         document.getElementById("responseCount").innerText = responseInput.value.length + "/140"
     })
+</script>
+
+<!--  Google Gemini API  -->
+<script>
 </script>
 
 <!--  Move selected input across the code enter  -->
