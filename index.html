@@ -7,15 +7,15 @@
     <h1><strong>Kill the AI</strong></h1>
 </center>
 
-<button id="removeAiToken" class="hidden bottomLeft join-button" onclick="removeToken()">Remove token</button>
+<button id="removeAiToken" class="hidden bottomLeft join-button" onclick="removeToken()">REMOVE TOKEN</button>
 
 <div id="noAiTokenSet" class="hidden">
     <center>
         <h3>Looks like you haven't set a Google Gemini token! Only the host needs this token!</h3>
         <label for="tokenInput">Enter your <strong>Google Gemini</strong> token.<br>Don't worry we won't share this with anybody. If you ever need to remove your token click the button in the bottom left</label>
         <br>
-        <input name="tokenInput" id="tokenInput" placeholder="Google Gemini">
-        <button onclick="submitToken()" class="join-button">Submit Token</button>
+        <input name="tokenInput" id="tokenInput" class="input" placeholder="GOOGLE GEMINI TOKEN">
+        <button onclick="submitToken()" class="join-button">SUBMIT TOKEN</button>
         <br>
         <br>
         <br>
@@ -24,15 +24,15 @@
 
 <div id="menu" class="">
     <center>
-        <label for="nameInput">Enter your username</label>
+        <label for="nameInput">NAME</label>
         <br>
-        <input name="nameInput" id="usernameInput" class="input" placeholder="Guest 1234">
-        <br>
-        <br>
-        <button onclick="host()" id="hostGameButton" class="join-button">Host Game</button>
+        <input name="nameInput" id="usernameInput" maxlength="16" class="input" placeholder="ENTER YOUR NAME">
         <br>
         <br>
-        <button onclick="join()" class="join-button">Join Game</button>
+        <button onclick="host()" id="hostGameButton" class="join-button">HOST GAME</button>
+        <br>
+        <br>
+        <button onclick="join()" class="join-button">JOIN GAME</button>
         <br>
         <br>
 
@@ -53,15 +53,28 @@
     <center id="pregame">
         <h3 id="gameCode">XXXXXX</h3>
         <h4 id="playerCount">Players: 1</h4>
+        <button onclick="startGame()" disabled id="startGameButton" class="join-button">START GAME</button>
+    </center>
+
+    <center id="waitForPrompt">
+        <h3 id="whoIsChoosingPrompt">USERNAME IS CHOOSING THE PROMPT</h3>
     </center>
 
     <center id="enterPrompt">
-        
+        <h3>YOU'RE CHOOSING THE PROMPT</h3>
+        <h2 id="choosePromptCountdown">60</h2>
+        <textarea type="text" class="actionInput" id="promptTextbox" placeholder="The AI is stuck on a volcano..." maxlength="140"></textarea>
+        <div class="characterCount" id="promptCount">0/140</div>
+        <button onclick="submitPrompt()" disabled id="submitPromptButton" class="join-button">SUBMIT</button>
     </center>
 
     <center id="typeResponse">
-        <textarea type="text" class="actionInput" placeholder="You will kill the AI by..."></textarea>
-        <div class="characterCount">0/100</div>
+        <h3>WRITE HOW YOU'LL KILL THE AI</h3>
+        <h3 id="promptResponseText">PROMPT: </h3>
+        <h2 id="typeResponseCountdown">60</h2>
+        <textarea type="text" class="actionInput" id="responseTextbox" placeholder="You will kill the AI by..." maxlength="140"></textarea>
+        <div class="characterCount" id="responseCount">0/140</div>
+        <button onclick="startGame()" disabled id="submitResponseButton" class="join-button">SUBMIT</button>
     </center>
 
     <center id="score" class="scoreContainer hidden">
@@ -145,13 +158,21 @@
 <script>
     var peer = new Peer();
     var myUsername = "Host"
+    var maxUsernameLength = 16
     var myCode = generateShortCode(6)
     var connection = null
+    var areWeInGame = false
 
     var clients = {}
     var names = []
-    var choosingPromptId = null
+    var choosingPromptName = null
     var rounds = 5
+    var currentRound = 0
+    
+    const timeToCraftPrompt = 60
+
+    var countdown = 0
+    var countdownInterval = null
 
     var params = new URLSearchParams(window.location.search)
     var urlCode = ""
@@ -180,11 +201,13 @@
         document.getElementById("enterPrompt").classList.add("hidden")
         document.getElementById("typeResponse").classList.add("hidden")
         document.getElementById("score").classList.add("hidden")
+        document.getElementById("whoIsChoosingPrompt").classList.add("hidden")
     }
 
     function openPregame(){
         document.getElementById("pregame").classList.remove("hidden")
         document.getElementById("enterPrompt").classList.add("hidden")
+        document.getElementById("whoIsChoosingPrompt").classList.add("hidden")
         document.getElementById("typeResponse").classList.add("hidden")
         document.getElementById("score").classList.add("hidden")
     }
@@ -192,6 +215,15 @@
     function openPrompt(){
         document.getElementById("pregame").classList.add("hidden")
         document.getElementById("enterPrompt").classList.remove("hidden")
+        document.getElementById("whoIsChoosingPrompt").classList.add("hidden")
+        document.getElementById("typeResponse").classList.add("hidden")
+        document.getElementById("score").classList.add("hidden")
+    }
+    
+    function openWaitForPrompt(){
+        document.getElementById("pregame").classList.add("hidden")
+        document.getElementById("enterPrompt").classList.add("hidden")
+        document.getElementById("whoIsChoosingPrompt").classList.remove("hidden")
         document.getElementById("typeResponse").classList.add("hidden")
         document.getElementById("score").classList.add("hidden")
     }
@@ -199,6 +231,7 @@
     function openResponse(){
         document.getElementById("pregame").classList.add("hidden")
         document.getElementById("enterPrompt").classList.add("hidden")
+        document.getElementById("whoIsChoosingPrompt").classList.add("hidden")
         document.getElementById("typeResponse").classList.remove("hidden")
         document.getElementById("score").classList.add("hidden")
     }
@@ -206,10 +239,24 @@
     function openScore(){
         document.getElementById("pregame").classList.add("hidden")
         document.getElementById("enterPrompt").classList.add("hidden")
+        document.getElementById("whoIsChoosingPrompt").classList.add("hidden")
         document.getElementById("typeResponse").classList.add("hidden")
         document.getElementById("score").classList.remove("hidden")
     }
 
+
+    function startTimer(amountOfTime, countdownElement, timesUpFunction){
+        countdown = amountOfTime
+        countdownInterval = setInterval(()=>{
+            countdown -= 1
+            if(countdown < 0){
+                clearInterval(countdownInterval)
+                timesUpFunction()
+            }
+
+            countdownElement.innerText = countdown
+        }, 1000)
+    }
 
 
     function addPlayer(conn){
@@ -284,6 +331,9 @@
         peer.on('connection', onConnection)
         peer.on('open', ()=>{
             console.log("Hosting with Room Code: " + myCode)
+            areWeInGame = true
+            document.getElementById("startGameButton").disabled = false
+
             names = [myUsername]
 
             generateElementsForScore(myUsername)
@@ -309,6 +359,20 @@
         connection.on('data', onData)
     }
 
+    function startGame(){
+        choosingPromptName = names[currentRound % names.length]
+
+        data1 = {"command": "startGame"}
+        data2 = {
+            "command": "setChoosingPrompt",
+            "parameters": [choosingPromptName]
+        }
+        sendToEveryone(JSON.stringify(data1))  // start game
+        sendToEveryone(JSON.stringify(data2))  // bestow upon someone the privilege to choose a prompt / scenario
+
+        updatePromptPage(choosingPromptName)
+    }
+
 
     function getClientIds(){
         return Object.keys(clients)
@@ -325,6 +389,72 @@
             clientId = clientIds[i]
             sendToClient(clientId, data)
         }
+    }
+
+
+    function sendPrompt(prompt){
+        document.getElementById("promptTextbox").value = ""
+
+        data = JSON.stringify({
+            "command": "sendPrompt",
+            "parameters": [prompt]
+        })
+
+        if(connection != null){
+            connection.send(data)
+        }
+        else{
+            sendToEveryone(data)
+        }
+    }
+
+    function submitPrompt(){
+        promptData = document.getElementById("promptTextbox").value
+        if(promptData == ""){ promptData = "The AI is on the edge of a volcano!" }
+        
+        sendPrompt(promptData)
+    }
+
+
+    function updatePromptPage(choosingPromptName){
+        if(myUsername == choosingPromptName){
+            openPrompt()
+            startTimer(2, document.getElementById("choosePromptCountdown"), submitPrompt)
+        }
+        else{
+            document.getElementById("whoIsChoosingPrompt").innerText = choosingPromptName.toUpperCase() + " IS CHOOSING THE PROMPT"
+            openWaitForPrompt()
+        }
+    }
+
+
+    function sendResponse(response){
+        document.getElementById("responseTextbox").value = ""
+
+        data = JSON.stringify({
+            "command": "sendResponse",
+            "parameters": [response]
+        })
+
+        if(connection != null){
+            connection.send(data)
+        }
+        else{
+            sendToEveryone(data)
+        }
+    }
+
+    function submitResponse(){
+        responseData = document.getElementById("responseTextbox").value
+        if(responseData == ""){ responseData = "I didn't write anything or time ran out!" }
+        
+        sendResponse(responseData)
+    }
+
+
+    function getResponses(promptData){
+        startTimer(2, document.getElementById("choosePromptCountdown"), submitPrompt)
+        openResponse()
     }
 
 
@@ -358,7 +488,16 @@
                 }
                 if(repeats > 0){ username += " " + (repeats+1) }
 
-                clients[jsonData["id"]].username = username
+                clientConnection = clients[jsonData["id"]]
+
+                if(username != jsonData["parameters"][0]){
+                    clientConnection.send(JSON.stringify({
+                        "command": "updateUsername",
+                        "parameters": [username]
+                    }))
+                }
+
+                clientConnection.username = username
                 names.push(username)
 
                 generateElementsForScore(username)
@@ -374,6 +513,29 @@
             case "removeElementScore":
                 // username of person to remove
                 removeElementForScore(jsonData["parameters"][0])
+                break
+            case "startGame":
+                break
+            case "setChoosingPrompt":
+                choosingPromptName = jsonData["parameters"][0]
+                updatePromptPage(choosingPromptName)
+                break
+            case "updateUsername":
+                myUsername = jsonData["parameters"][0]
+                break
+            case "sendPrompt":
+                promptString = jsonData["parameters"][0]
+                if(connection == null){
+                    sendToEveryone(JSON.stringify({
+                        "command": "sendPrompt",
+                        "parameters": [promptString]
+                    }))
+                }
+
+                document.getElementById("responseTextbox").value = ""
+                document.getElementById("promptResponseText").innerText = promptString
+                openResponse()
+
                 break
         }
         console.log(jsonData)
@@ -400,6 +562,25 @@
         })
         conn.on('data', onData)
     }
+
+
+    const usernameInput = document.getElementById("usernameInput")
+    const promptInput = document.getElementById("promptTextbox")
+    const responseInput = document.getElementById("responseTextbox")
+    usernameInput.addEventListener("input", (e)=>{
+        myUsername = usernameInput.value
+        if(myUsername == "" || myUsername.length > maxUsernameLength){
+            myUsername = "Guest"
+        }
+    })
+
+    promptInput.addEventListener("input", (e)=>{
+        document.getElementById("promptCount").innerText = promptInput.value.length + "/140"
+    })
+
+    responseInput.addEventListener("input", (e)=>{
+        document.getElementById("responseCount").innerText = responseInput.value.length + "/140"
+    })
 </script>
 
 <!--  Move selected input across the code enter  -->
