@@ -7,6 +7,50 @@
             margin: 0;
             font-family: Arial, sans-serif;
         }
+
+        .scoreContainer{
+            display: table;
+            /* width: 100%; */
+            border-spacing: 10px 20px;
+        }
+        .row{
+            display: table-row;
+        }
+        .cell{
+            display: table-cell;
+            padding: 0 10px;
+            text-align: center;
+        }
+
+        .username{
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        .scoreImageHolder{
+            display: flex;
+            justify-content: space-between;
+        }
+        .scoreImage{
+            height: 10px;
+            width: 10px;
+            background-color: black;
+            border-radius: 50%;
+        }
+
+        /*
+        .personScore{
+            display: flex;
+            align-items: center;
+        }
+        .username{
+            margin-right: 10px;
+        }
+        .scoreImage{
+            margin-left: 5px;
+        }
+        */
+
         .hidden{
             display: none;
         }
@@ -124,8 +168,23 @@
         
     </center>
 
-    <center id="score">
-        
+    <center id="score" class="scoreContainer">
+        <!-- Score Structure Skeleton
+        <div id="copyPerson" class="personScore">
+            <span class="username">USERNAME</span>
+            <img src="images/empty_dot.png" class="scoreImage"> // times the number of rounds
+        </div>
+        -->
+
+        <div class="row">
+            <div class="cell username">USERNAME</div>
+            <div class="cell dots">
+                <img src="images/empty_dot.png" class="dot">
+                <img src="images/empty_dot.png" class="dot">
+                <img src="images/empty_dot.png" class="dot">
+                <img src="images/empty_dot.png" class="dot">
+            </div>
+        </div>
     </center>
 </div>
 
@@ -194,12 +253,14 @@
 <!--  Networking  -->
 <script>
     var peer = new Peer();
+    var myUsername = "Host"
     var myCode = generateShortCode(6)
     var connection = null
 
     var clients = {}
     var names = []
     var choosingPromptId = null
+    var rounds = 5
 
     function generateShortCode(length = 5) {
         const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -218,18 +279,60 @@
         document.getElementById("gameCode").innerHTML = lobbyCode
     }
     function addPlayer(conn){
+        id = conn.connectionId
         console.log(id + " has joined")
         clients[id] = conn
+        conn.send(sendToEveryone(JSON.stringify({
+            "command": "generateElementScore",
+            "parameters": [myUsername]
+        })))
         updatePopulation()
     }
     function removePlayer(conn){
+        id = conn.connectionId
         console.log(id + " has left")
+
+        let leavingUsername = clients[id].username
+        removeElementForScore(leavingUsername)
+        sendToEveryone(JSON.stringify({
+            "command": "removeElementScore",
+            "parameters": [leavingUsername]
+        }))
+
+        names.indexOf(leavingUsername)
+
         delete clients[conn.connectionId]
         updatePopulation()
     }
     function setLobbyPopulation(population){
         document.getElementById("playerCount").innerHTML = "Players: " + population
     }
+    function generateElementsForScore(username){
+        scoreElement = document.getElementById("score")
+        
+        playerScore = document.createElement("div")
+        playerScore.id = username
+        playerScore.classList.add("personScore")
+        scoreElement.appendChild(playerScore)
+
+        nameSpan = document.createElement("span")
+        nameSpan.innerHTML = username
+        nameSpan.classList.add("username")
+        playerScore.appendChild(nameSpan)
+
+        for(let i=0; i<rounds; i++){
+            image = document.createElement("img")
+            image.src = "images/empty_dot.png"
+            image.classList.add("scoreImage")
+            image.classList.add("round_" + i)
+            playerScore.appendChild(image)
+        }
+    }
+    function removeElementForScore(username){
+        ele = document.getElementById(username)
+        if(ele != null){ ele.remove() }
+    }
+
 
     function host(){
         if(token == "") { return }
@@ -237,6 +340,7 @@
         peer.on('connection', onConnection)
         peer.on('open', ()=>{
             console.log("Hosting with Room Code: " + myCode)
+            generateElementsForScore(myUsername)
             setLobbyToVisible(myCode)
         })
     }
@@ -289,9 +393,11 @@
 
         switch(command){
             case "populate":
+                // num of ppl in lobby
                 setLobbyPopulation(jsonData["parameters"][0])
                 break
             case "setName":
+                // username to set
                 let username = jsonData["parameters"][0]
                 let repeats = 0
                 for(let i=0; i<names.length; i++){
@@ -301,6 +407,20 @@
 
                 clients[jsonData["id"]].username = username
                 names.push(username)
+
+                generateElementsForScore(username)
+                sendToEveryone(JSON.stringify({
+                    "command": "generateElementScore",
+                    "parameters": [username]
+                }))
+                break
+            case "generateElementScore":
+                // username of person to generate
+                generateElementsForScore(jsonData["parameters"][0])
+                break
+            case "removeElementScore":
+                // username of person to remove
+                removeElementForScore(jsonData["parameters"][0])
                 break
         }
         console.log(jsonData)
@@ -319,10 +439,10 @@
     function onConnection(conn){
         id = conn.connectionId
         conn.on('open', ()=>{
-            addPlayer()
+            addPlayer(conn)
         })
         conn.on('close', ()=>{
-            removePlayer()
+            removePlayer(conn)
         })
         conn.on('data', onData)
     }
