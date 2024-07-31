@@ -1,115 +1,5 @@
 <head>
-    <style>
-        body{
-            background-color: #333333;
-            color: white;
-            height: 100vh;
-            margin: 0;
-            font-family: Arial, sans-serif;
-        }
-
-        .scoreContainer{
-            display: table;
-            /* width: 100%; */
-            border-spacing: 10px 20px;
-        }
-        .row{
-            display: table-row;
-        }
-        .cell{
-            display: table-cell;
-            padding: 0 10px;
-            text-align: center;
-        }
-
-        .username{
-            text-align: left;
-            white-space: nowrap;
-        }
-
-        .scoreImageHolder{
-            display: flex;
-            justify-content: space-between;
-        }
-        .scoreImage{
-            height: 10px;
-            width: 10px;
-            background-color: black;
-            border-radius: 50%;
-        }
-
-        /*
-        .personScore{
-            display: flex;
-            align-items: center;
-        }
-        .username{
-            margin-right: 10px;
-        }
-        .scoreImage{
-            margin-left: 5px;
-        }
-        */
-
-        .hidden{
-            display: none;
-        }
-        .bottomLeft{
-            position: absolute;
-            left: 0px;
-            bottom: 0px;
-        }
-
-        
-        .container {
-            text-align: center;
-        }
-
-        .container h1 {
-            margin-bottom: 20px;
-        }
-
-        .code-inputs {
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-        }
-
-        .code-inputs input {
-            width: 40px;
-            height: 40px;
-            text-align: center;
-            font-size: 18px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            outline: none;
-            transition: border-color 0.3s;
-        }
-
-        .code-inputs input:focus {
-            border-color: #007bff;
-        }
-
-
-        .join-button {
-            padding: 10px 20px;
-            font-size: 12px;
-            color: #fff;
-            background-color: #007bff;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-
-        .join-button:hover {
-            background-color: #0056b3;
-        }
-
-        .join-button:disabled {
-            background-color: #6d8195;
-        }
-    </style>
+    <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 </head>
 
@@ -134,6 +24,11 @@
 
 <div id="menu" class="">
     <center>
+        <label for="nameInput">Enter your username</label>
+        <br>
+        <input name="nameInput" id="usernameInput" class="input" placeholder="Guest 1234">
+        <br>
+        <br>
         <button onclick="host()" id="hostGameButton" class="join-button">Host Game</button>
         <br>
         <br>
@@ -143,12 +38,12 @@
 
         <div class="container">
             <div class="code-inputs">
-                <input type="text" maxlength="1" />
-                <input type="text" maxlength="1" />
-                <input type="text" maxlength="1" />
-                <input type="text" maxlength="1" />
-                <input type="text" maxlength="1" />
-                <input type="text" maxlength="1" />
+                <input type="text" class="input" maxlength="1" />
+                <input type="text" class="input" maxlength="1" />
+                <input type="text" class="input" maxlength="1" />
+                <input type="text" class="input" maxlength="1" />
+                <input type="text" class="input" maxlength="1" />
+                <input type="text" class="input" maxlength="1" />
             </div>
         </div>
     </center>
@@ -164,27 +59,23 @@
         
     </center>
 
-    <center id="results">
-        
+    <center id="typeResponse">
+        <textarea type="text" class="actionInput" placeholder="You will kill the AI by..."></textarea>
+        <div class="characterCount">0/100</div>
     </center>
 
-    <center id="score" class="scoreContainer">
+    <center id="score" class="scoreContainer hidden">
         <!-- Score Structure Skeleton
-        <div id="copyPerson" class="personScore">
-            <span class="username">USERNAME</span>
-            <img src="images/empty_dot.png" class="scoreImage"> // times the number of rounds
-        </div>
-        -->
-
         <div class="row">
             <div class="cell username">USERNAME</div>
-            <div class="cell dots">
-                <img src="images/empty_dot.png" class="dot">
-                <img src="images/empty_dot.png" class="dot">
-                <img src="images/empty_dot.png" class="dot">
-                <img src="images/empty_dot.png" class="dot">
+            <div class="dots">
+                <img src="images/empty_dot.png">
+                <img src="images/empty_dot.png">
+                <img src="images/empty_dot.png">
+                <img src="images/empty_dot.png">
             </div>
         </div>
+        -->
     </center>
 </div>
 
@@ -262,6 +153,13 @@
     var choosingPromptId = null
     var rounds = 5
 
+    var params = new URLSearchParams(window.location.search)
+    var urlCode = ""
+    for (const [key, value] of params){
+        if(key == "code"){ urlCode = value }
+        join(urlCode)
+    }
+
     function generateShortCode(length = 5) {
         const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
         let code = '';
@@ -277,15 +175,56 @@
         document.getElementById("noAiTokenSet").classList.add("hidden")
         document.getElementById("removeAiToken").classList.add("hidden")
         document.getElementById("gameCode").innerHTML = lobbyCode
+
+        document.getElementById("pregame").classList.add("hidden")
+        document.getElementById("enterPrompt").classList.add("hidden")
+        document.getElementById("typeResponse").classList.add("hidden")
+        document.getElementById("score").classList.add("hidden")
     }
+
+    function openPregame(){
+        document.getElementById("pregame").classList.remove("hidden")
+        document.getElementById("enterPrompt").classList.add("hidden")
+        document.getElementById("typeResponse").classList.add("hidden")
+        document.getElementById("score").classList.add("hidden")
+    }
+
+    function openPrompt(){
+        document.getElementById("pregame").classList.add("hidden")
+        document.getElementById("enterPrompt").classList.remove("hidden")
+        document.getElementById("typeResponse").classList.add("hidden")
+        document.getElementById("score").classList.add("hidden")
+    }
+
+    function openResponse(){
+        document.getElementById("pregame").classList.add("hidden")
+        document.getElementById("enterPrompt").classList.add("hidden")
+        document.getElementById("typeResponse").classList.remove("hidden")
+        document.getElementById("score").classList.add("hidden")
+    }
+
+    function openScore(){
+        document.getElementById("pregame").classList.add("hidden")
+        document.getElementById("enterPrompt").classList.add("hidden")
+        document.getElementById("typeResponse").classList.add("hidden")
+        document.getElementById("score").classList.remove("hidden")
+    }
+
+
+
     function addPlayer(conn){
         id = conn.connectionId
         console.log(id + " has joined")
+        
+        for(let i=0; i<names.length; i++){
+            conn.send(JSON.stringify({
+                "command": "generateElementScore",
+                "parameters": [names[i]]
+            }))
+        }
+
         clients[id] = conn
-        conn.send(sendToEveryone(JSON.stringify({
-            "command": "generateElementScore",
-            "parameters": [myUsername]
-        })))
+        
         updatePopulation()
     }
     function removePlayer(conn){
@@ -309,16 +248,21 @@
     }
     function generateElementsForScore(username){
         scoreElement = document.getElementById("score")
-        
+
         playerScore = document.createElement("div")
         playerScore.id = username
-        playerScore.classList.add("personScore")
+        playerScore.classList.add("row")
         scoreElement.appendChild(playerScore)
 
-        nameSpan = document.createElement("span")
+        nameSpan = document.createElement("div")
         nameSpan.innerHTML = username
+        nameSpan.classList.add("cell")
         nameSpan.classList.add("username")
         playerScore.appendChild(nameSpan)
+
+        imageHolder = document.createElement("div")
+        imageHolder.classList.add("dots")
+        scoreElement.appendChild(imageHolder)
 
         for(let i=0; i<rounds; i++){
             image = document.createElement("img")
@@ -340,8 +284,11 @@
         peer.on('connection', onConnection)
         peer.on('open', ()=>{
             console.log("Hosting with Room Code: " + myCode)
+            names = [myUsername]
+
             generateElementsForScore(myUsername)
             setLobbyToVisible(myCode)
+            openPregame()
         })
     }
     function join(roomID){
@@ -350,7 +297,13 @@
         connection = peer.connect(roomID)
         //console.log(connection)
         if(connection == null){
-            alert("Connection Error! Try again...")
+            if(urlCode != ""){
+                alert("Connection Error! Try again...")
+                window.location.search = ""
+            }
+            else{
+                window.location.href += "?code=" + roomID
+            }
         }
         connection.on('open', connectionOpen)
         connection.on('data', onData)
@@ -430,10 +383,11 @@
         startupData = {
             "id": connection.connectionId,
             "command": "setName",
-            "parameters": ["BBM"],
+            "parameters": [myUsername],
         }
         connection.send(JSON.stringify(startupData))
         setLobbyToVisible(connection.peer)
+        openPregame()
     }
 
     function onConnection(conn){

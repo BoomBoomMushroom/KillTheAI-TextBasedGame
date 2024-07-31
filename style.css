@@ -1,0 +1,122 @@
+body{
+    background-color: #333333;
+    color: white;
+    height: 100vh;
+    margin: 0;
+    font-family: Arial, sans-serif;
+}
+
+.actionInput{
+    border: 1px solid #fff;
+    border-radius: 5px;
+    background-color: #111;
+    resize: none;
+    color: #fff;
+    padding: 10px;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 80%;
+    width: 80%;
+}
+
+.characterCount{
+    color: gray;
+    margin-right: -80%;
+}
+
+.scoreContainer{
+    display: table;
+    /* width: 100%; */
+    border-spacing: 10px 20px;
+}
+.row{
+    display: flex;
+}
+.cell{
+    display: table-cell;
+    padding: 0 10px;
+    text-align: center;
+}
+
+.username{
+    text-align: left;
+    white-space: nowrap;
+    flex: 1;
+    padding: 20px;
+}
+.dots{
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-around;
+}
+img{
+    width: 32px;
+    height: auto;
+    object-fit: contain;
+    padding: 5px;
+}
+
+
+.hidden{
+    display: none;
+}
+.bottomLeft{
+    position: absolute;
+    left: 0px;
+    bottom: 0px;
+}
+
+
+.container {
+    text-align: center;
+}
+
+.container h1 {
+    margin-bottom: 20px;
+}
+
+.code-inputs {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+
+.code-inputs input {
+    width: 40px;
+    height: 40px;
+}
+
+.input{
+    text-align: center;
+    font-size: 18px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    outline: none;
+    transition: border-color 0.3s;
+}
+
+.code-inputs input:focus {
+    border-color: #007bff;
+}
+
+
+.join-button {
+    padding: 10px 20px;
+    font-size: 12px;
+    color: #fff;
+    background-color: #007bff;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.join-button:hover {
+    background-color: #0056b3;
+}
+
+.join-button:disabled {
+    background-color: #6d8195;
+}
