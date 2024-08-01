@@ -1,7 +1,8 @@
 <head>
     <link rel="stylesheet" href="style.css">
+    <script>var exports = {};</script> <!-- Hack my way to make exports work -->
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@google/generative-ai@0.16.0/dist/index.min.js"></script>
+    <script src="https://unpkg.com/@google/generative-ai@0.16.0/dist/index.js"></script>
 </head>
 
 <center>
@@ -151,6 +152,7 @@
         if(token != ""){
             setCookie("geminiToken", btoa(token), 9999)
             weHaveToken()
+            setGeminiAiToken(token)
             document.getElementById("tokenInput").value = ""
         }
     }
@@ -158,6 +160,9 @@
     function removeToken(){
         setCookie("geminiToken", "", 1)
         noToken()
+        
+        token = ""
+        setGeminiAiToken("")
     }
 </script>
 
@@ -414,6 +419,7 @@
 
     function receivePrompt(promptString){
         document.getElementById("responseTextbox").value = ""
+        document.getElementById("responseTextbox").disabled = false
         document.getElementById("promptResponseText").innerText = promptString
         openResponse()
         getResponses()
@@ -462,8 +468,6 @@
 
 
     function sendResponse(response){
-        document.getElementById("responseTextbox").value = ""
-
         data = JSON.stringify({
             "command": "sendResponse",
             "parameters": [response]
@@ -481,23 +485,60 @@
 
     function submitResponse(){
         responseData = document.getElementById("responseTextbox").value
+        document.getElementById("responseTextbox").disabled = true
+        document.getElementById("submitResponseButton").classList.add("hidden")
+
         if(responseData == ""){ responseData = "I didn't write anything or time ran out!" }
         stopTimer()
+        document.getElementById("typeResponseCountdown").classList.add("hidden")
         sendResponse(responseData)
     }
 
 
     function getResponses(promptData){
-        startTimer(timeToRespond, document.getElementById("typeResponseCountdown"), submitResponse)
+        responseCountdownTimer = document.getElementById("typeResponseCountdown")
+        responseCountdownTimer.classList.remove("hidden")
+        document.getElementById("submitResponseButton").classList.remove("hidden")
+        startTimer(timeToRespond, responseCountdownTimer, submitResponse)
         openResponse()
     }
 
-    function receiveResponse(responseData, username){
-        responses[username] = responseData
-        submittedNames = Object.keys(responses)
-        if(submittedNames.length == names.length){
-            console.log(responses)
+    function startStoryTelling(){
+        console.log(responses)
+    }
+
+    function getCloneOfArrayMinusValue(array, value){
+        out = []
+        for(let i=0; i<array.length; i++){
+            v = array[out]
+            if(v != value){
+                out.push(v)
+            }
         }
+        return out
+    }
+
+    function receiveResponse(responseData, username){
+        data = {
+            "respondingPlayerUsername": username,
+            "otherPlayers": getCloneOfArrayMinusValue(names, username),
+            "playersResponse": responseData,
+            "scenario": document.getElementById("promptResponseText").innerText
+        }
+
+        geminiRunPrompt(JSON.stringify(data), (text)=>{
+            outData = JSON.parse(text)
+            responses[username] = outData
+            submittedNames = Object.keys(responses)
+            if(submittedNames.length == names.length){
+                // all responses are in!
+                startStoryTelling()
+            }
+        }, (e)=>{
+            console.log(data)
+            console.log(e)
+            console.error("Something went wrong when Gemini tried to parse the response!")
+        })
     }
 
 
@@ -631,7 +672,6 @@
 
 <!--  Google Gemini API  -->
 <script>
-    var { GoogleGenerativeAI } = require("@google/generative-ai");
     var genAI = new GoogleGenerativeAI("");
     var model = null
 
@@ -643,7 +683,20 @@
         responseMimeType: "text/plain",
     };
 
-    var isolatedGamemodeSystemIntructions = "You will get a scenario then a player's response to the situation. The players goal is to kill you. You will only respond in JSON. You will response will play out the scenario and determine if they successfully kill you. You will follow this outline for response\n{\n\"storyText\": \"\", # str\n\"playerUsername\": \"John Doe\", # str\n\"otherPlayers\": [\"Jane\", \"Jack\", \"Timmy\"], # list[str]\n\"playersResponse\": \"\" # str\n\"scenario\": \"\" # str\n}"
+    var isolatedGamemodeSystemIntructions = `
+You will get a scenario then a player's response to the situation. The players goal is to kill you. You will only respond in JSON. You will response will play out the scenario and determine if they successfully kill you. This is a final descision and no other interaction with the player will happen after this. the "didKillTheAI" flag will only be set if you, the ai judge, is killed by the player. You will follow this outline for response
+{
+"storyText": "", # str
+"didKillTheAI": false, # bool
+}
+This is the outline for the input.
+{
+"respondingPlayerUsername": "John Doe", # str
+"otherPlayers": ["Jane", "Jack", "Timmy"], # list[str]
+"playersResponse": "", # str
+"scenario": "" # str
+}
+`
 
     function setGeminiAiToken(TOKEN){
         genAI = new GoogleGenerativeAI(TOKEN);
@@ -653,15 +706,22 @@
         })
     }
 
-    function run(prompt){
+    function geminiRunPrompt(prompt, resultFunction, failureFunction){
         const chatSession = model.startChat({
             generationConfig,
             history: [],
         });
-        let result = chatSession.sendMessage(prompt)
-        console.log(result.response.text())
+        chatSession.sendMessage(prompt)
+            .then((result)=>{
+                text = result.response.text()
+                resultFunction(text)
+            })
+            .catch(failureFunction)
     }
 
+    function printResult(result){
+        console.log(result)
+    }
 </script>
 
 <!--  Move selected input across the code enter  -->
