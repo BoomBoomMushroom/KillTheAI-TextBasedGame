@@ -1,6 +1,7 @@
 <head>
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@google/generative-ai@0.16.0/dist/index.min.js"></script>
 </head>
 
 <center>
@@ -630,6 +631,37 @@
 
 <!--  Google Gemini API  -->
 <script>
+    var { GoogleGenerativeAI } = require("@google/generative-ai");
+    var genAI = new GoogleGenerativeAI("");
+    var model = null
+
+    const generationConfig = {
+        temperature: 1,
+        topP: 0.95,
+        topK: 64,
+        maxOutputTokens: 8192,
+        responseMimeType: "text/plain",
+    };
+
+    var isolatedGamemodeSystemIntructions = "You will get a scenario then a player's response to the situation. The players goal is to kill you. You will only respond in JSON. You will response will play out the scenario and determine if they successfully kill you. You will follow this outline for response\n{\n\"storyText\": \"\", # str\n\"playerUsername\": \"John Doe\", # str\n\"otherPlayers\": [\"Jane\", \"Jack\", \"Timmy\"], # list[str]\n\"playersResponse\": \"\" # str\n\"scenario\": \"\" # str\n}"
+
+    function setGeminiAiToken(TOKEN){
+        genAI = new GoogleGenerativeAI(TOKEN);
+        model = genAI.getGenerativeModel({
+            model: "gemini-1.5-flash",
+            systemInstruction: isolatedGamemodeSystemIntructions,
+        })
+    }
+
+    function run(prompt){
+        const chatSession = model.startChat({
+            generationConfig,
+            history: [],
+        });
+        let result = chatSession.sendMessage(prompt)
+        console.log(result.response.text())
+    }
+
 </script>
 
 <!--  Move selected input across the code enter  -->
