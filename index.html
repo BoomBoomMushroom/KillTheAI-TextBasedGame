@@ -82,7 +82,8 @@
     <center id="aiTellStory">
         <h3 id="tellStoryTitle">USERNAME ATTEMPTS TO KILL THE AI BY</h3>
         <textarea type="text" class="actionInput" id="tellStoryTextbox" disabled></textarea>
-        <button onclick="nextResponse()" id="nextResponseButton" class="join-button">NEXT</button>
+        <br>
+        <button onclick="nextResult()" id="nextResponseButton" class="join-button">NEXT</button>
     </center>
 
     <center id="score" class="scoreContainer hidden">
@@ -181,7 +182,9 @@
     var choosingPromptName = null
     var rounds = 5
     var currentRound = 0
-    
+    var currentViewingStoryIndex = 0
+    var storyInterval = null
+
     const timeToCraftPrompt = 60
     const timeToRespond = 60
 
@@ -341,6 +344,7 @@
             image.src = "images/empty_dot.png"
             image.classList.add("scoreImage")
             image.classList.add("round_" + i)
+            image.id = username + "_round_" + i
             playerScore.appendChild(image)
         }
     }
@@ -503,8 +507,73 @@
         openResponse()
     }
 
+    async function nextResult(){
+        currentViewingStoryIndex++
+        clearInterval(storyInterval)
+
+        if(currentViewingStoryIndex >= names.length){
+            // we're out of people/stories
+            console.log("Finished story telling")
+            if(currentRound >= rounds){
+                // end game and return to lobby
+                // also clean everything. (scores, currentRound)
+            }
+            else{
+                // start another round
+            }
+            return
+        }
+
+        name = names[currentViewingStoryIndex]
+        storyTellPerson(name)
+    }
+
+
+    async function storyTellPerson(username){
+        /*
+        <h3 id="tellStoryTitle">USERNAME ATTEMPTS TO KILL THE AI BY</h3>
+        <textarea type="text" class="actionInput" id="tellStoryTextbox" disabled></textarea>
+        <button onclick="nextResponse()" id="nextResponseButton" class="join-button">NEXT</button>
+        */
+        document.getElementById("tellStoryTitle").innerText = username.toUpperCase() + " ATTEMPTS TO KILL THE AI"
+        storyEle = document.getElementById("tellStoryTextbox")
+        storyEle.innerText = ""
+
+        let data = responses[name]
+
+        // image load
+        let imageResultId = username + "_round_" + currentRound
+        document.getElementById(imageResultId).src = data["didKillTheAI"] ? "images/knife.png" : "images/x.png"
+
+        // play the story text
+        let story = data["storyText"]
+        let i = 0
+        storyInterval = setInterval(()=>{
+            i++
+            storyEle.innerText = story.substring(0, i)
+
+            if(i >= story.length){
+                // story is over
+                clearInterval(storyInterval)
+            }
+        }, 50)
+    }
+
     function startStoryTelling(){
         console.log(responses)
+
+        openStory()
+        currentViewingStoryIndex = -1 // nextResult will inc by 1 then do it
+        nextResult()
+
+        responses = {}
+        currentRound += 1
+        if(currentRound >= rounds){
+            // restart the game
+        }
+        else{
+            // go to the next round
+        }
     }
 
     function getCloneOfArrayMinusValue(array, value){
@@ -527,6 +596,7 @@
         }
 
         geminiRunPrompt(JSON.stringify(data), (text)=>{
+            console.log(text)
             outData = JSON.parse(text)
             responses[username] = outData
             submittedNames = Object.keys(responses)
@@ -672,8 +742,37 @@
 
 <!--  Google Gemini API  -->
 <script>
-    var genAI = new GoogleGenerativeAI("");
+    var genAI = new exports.GoogleGenerativeAI("");
     var model = null
+
+    // exports.HarmCategory
+    // exports.HarmBlockThreshold
+
+    const safetySettings = [
+        {
+            category: exports.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+            threshold: exports.HarmBlockThreshold.BLOCK_NONE,
+        },
+        {
+            category: exports.HarmCategory.HARM_CATEGORY_HARASSMENT,
+            threshold: exports.HarmBlockThreshold.BLOCK_NONE,
+        },
+        {
+            category: exports.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+            threshold: exports.HarmBlockThreshold.BLOCK_NONE,
+        },
+        {
+            category: exports.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+            threshold: exports.HarmBlockThreshold.BLOCK_NONE,
+        },
+        /*
+        // Causes Errors?
+        {
+            category: exports.HarmCategory.HARM_CATEGORY_UNSPECIFIED,
+            threshold: exports.HarmBlockThreshold.BLOCK_NONE,
+        },
+        */
+    ];
 
     const generationConfig = {
         temperature: 1,
@@ -699,10 +798,11 @@ This is the outline for the input.
 `
 
     function setGeminiAiToken(TOKEN){
-        genAI = new GoogleGenerativeAI(TOKEN);
+        genAI = new exports.GoogleGenerativeAI(TOKEN);
         model = genAI.getGenerativeModel({
             model: "gemini-1.5-flash",
             systemInstruction: isolatedGamemodeSystemIntructions,
+            safetySettings
         })
     }
 
