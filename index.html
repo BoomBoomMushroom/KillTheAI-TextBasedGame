@@ -83,7 +83,7 @@
         <h3 id="tellStoryTitle">USERNAME ATTEMPTS TO KILL THE AI BY</h3>
         <textarea type="text" class="actionInput" id="tellStoryTextbox" disabled></textarea>
         <br>
-        <button onclick="nextResult()" id="nextResponseButton" class="join-button">NEXT</button>
+        <button onclick="nextResultClick()" id="nextResponseButton" class="join-button">NEXT</button>
     </center>
 
     <center id="score" class="scoreContainer hidden">
@@ -507,21 +507,55 @@
         openResponse()
     }
 
+    function nextResultClick(){
+        data = {
+            "command": "nextResult",
+            "parameters": [currentViewingStoryIndex+1]
+        }
+        dataString = JSON.stringify(data)
+
+        if(connection != null){
+            // we're just a client! We must tell the host so they'll relay to everyone
+            connection.send(dataString)
+        }
+        else{
+            // we're host, send to everyone
+            sendToEveryone(dataString)
+            nextResult() // since we're the host we won't get the message. Therefore we must call it here
+        }
+    }
+
     async function nextResult(){
         currentViewingStoryIndex++
         clearInterval(storyInterval)
 
-        if(currentViewingStoryIndex >= names.length){
-            // we're out of people/stories
-            console.log("Finished story telling")
-            if(currentRound >= rounds){
-                // end game and return to lobby
-                // also clean everything. (scores, currentRound)
+        if(connection == null){ // we're the host.
+            if(currentViewingStoryIndex >= names.length){
+                // we're out of people/stories
+                console.log("Finished story telling")
+                data = {
+                    "command": "",
+                    "parameters": [currentViewingStoryIndex+1]
+                }
+
+                if(currentRound >= rounds){
+                    // end game and return to lobby
+                    // also clean everything. (scores, currentRound)
+
+                    data["command"] = "endGame"
+                }
+                else{
+                    // start another round
+                    currentRound += 1
+
+                    data["command"] = "nextRound"
+                }
+
+                responses = {}
+
+                sendToEveryone(dataString)
+                return
             }
-            else{
-                // start another round
-            }
-            return
         }
 
         name = names[currentViewingStoryIndex]
@@ -561,19 +595,19 @@
 
     function startStoryTelling(){
         console.log(responses)
+        // send the names & responses to all the clients so they can know what to look for when story telling
+        sendToEveryone(JSON.stringify({
+            "command": "names",
+            "parameters": [names]
+        }))
+        sendToEveryone(JSON.stringify({
+            "command": "responses",
+            "parameters": [responses]
+        }))
 
         openStory()
         currentViewingStoryIndex = -1 // nextResult will inc by 1 then do it
-        nextResult()
-
-        responses = {}
-        currentRound += 1
-        if(currentRound >= rounds){
-            // restart the game
-        }
-        else{
-            // go to the next round
-        }
+        nextResultClick() // simulate clicking the button to trigger sending messages to everyone
     }
 
     function getCloneOfArrayMinusValue(array, value){
@@ -587,6 +621,21 @@
         return out
     }
 
+    function sanitizeJson(jsonString){
+        if(jsonString.startsWith("```json")){
+            // remove the way gemini make code blocks
+            /*
+            ```json
+            {
+                "myJson": "here"
+            }
+            ```
+            */
+            jsonString = jsonString.split("```json")[1].split("```")[0]
+        }
+        return jsonString
+    }
+
     function receiveResponse(responseData, username){
         data = {
             "respondingPlayerUsername": username,
@@ -597,6 +646,7 @@
 
         geminiRunPrompt(JSON.stringify(data), (text)=>{
             console.log(text)
+            text = sanitizeJson(text)
             outData = JSON.parse(text)
             responses[username] = outData
             submittedNames = Object.keys(responses)
@@ -692,6 +742,35 @@
                 responseString = jsonData["parameters"][0]
                 receiveResponse(responseString, clients[id].username)
                 break
+            case "nextResult":
+                storyIndex = jsonData["parameters"][0]
+                if(connection == null){
+                    // check if we're done with messages! if so don't relay
+                    if(storyIndex < names.length){
+                        // we're the host relay this to everyone
+                        sendToEveryone(JSON.stringify({
+                            "command": "nextResult",
+                            "parameters": [storyIndex]
+                        }))
+                    }
+                }
+
+                currentViewingStoryIndex = storyIndex - 1
+                nextResult()
+                break
+            case "responses":
+                if(connection != null){
+                    // make sure we're a client before we override the responses
+                    responses = jsonData["parameters"][0]
+                    openStory() // also open the stories
+                }
+                break
+            case "names":
+                if(connection != null){
+                    // make sure we're a client before we override the names
+                    names = jsonData["parameters"][0]
+                }
+                break
         }
         console.log(jsonData)
     }
@@ -783,7 +862,7 @@
     };
 
     var isolatedGamemodeSystemIntructions = `
-You will get a scenario then a player's response to the situation. The players goal is to kill you. You will only respond in JSON. You will response will play out the scenario and determine if they successfully kill you. This is a final descision and no other interaction with the player will happen after this. the "didKillTheAI" flag will only be set if you, the ai judge, is killed by the player. You will follow this outline for response
+You will get a scenario then a player's response to the situation. The players goal is to kill you. You will only respond in JSON. You will response will play out the scenario and determine if they successfully kill you. This is a final descision and no other interaction with the player will happen after this. the "didKillTheAI" flag will only be set if you, the ai judge, is killed by the player. You will only respond in JSON. You will never use code blocks using \`. The JSON will be parsed in JavaScript using JSON.parse() so it needs to be parsable without modification. You will follow this outline for response.
 {
 "storyText": "", # str
 "didKillTheAI": false, # bool
