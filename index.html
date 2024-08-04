@@ -138,7 +138,6 @@
     }
     else{
         token = atob(token)
-        setGeminiAiToken(token)
         weHaveToken()
     }
 
@@ -889,7 +888,7 @@
 
 <!--  Google Gemini API  -->
 <script>
-    var genAI = new exports.GoogleGenerativeAI("");
+    var genAI = new exports.GoogleGenerativeAI(token);
     var model = null
 
     // exports.HarmCategory
