@@ -87,6 +87,8 @@
     </center>
 
     <center id="score" class="scoreContainer hidden">
+        <h3>SCORE</h3>
+        <button onclick="nextRoundClick()" id="nextRoundButton" class="join-button">NEXT ROUND</button>
         <!-- Score Structure Skeleton
         <div class="row">
             <div class="cell username">USERNAME</div>
@@ -101,8 +103,10 @@
     </center>
 </div>
 
-<!--  Setup global functions like cookies  -->
+<!--  Setup global functions like cookies and sleep  -->
 <script>
+    const sleep = ms => new Promise(res => setTimeout(res, ms));
+
     function setCookie(cname, cvalue, exdays) {
         const d = new Date();
         d.setTime(d.getTime() + (exdays*24*60*60*1000));
@@ -175,6 +179,7 @@
     var myCode = generateShortCode(6)
     var connection = null
     var areWeInGame = false
+    var gameStarted = false
 
     var clients = {}
     var responses = {}
@@ -290,7 +295,7 @@
     function addPlayer(conn){
         id = conn.connectionId
         console.log(id + " has joined")
-        
+
         for(let i=0; i<names.length; i++){
             conn.send(JSON.stringify({
                 "command": "generateElementScore",
@@ -390,6 +395,7 @@
 
     function startGame(){
         choosingPromptName = names[currentRound % names.length]
+        gameStarted = true
 
         data1 = {"command": "startGame"}
         data2 = {
@@ -529,37 +535,62 @@
         currentViewingStoryIndex++
         clearInterval(storyInterval)
 
-        if(connection == null){ // we're the host.
-            if(currentViewingStoryIndex >= names.length){
-                // we're out of people/stories
+        if(currentViewingStoryIndex >= names.length){ // we're out of people/stories
+            if(connection == null){ // we're the host.
                 console.log("Finished story telling")
-                data = {
-                    "command": "",
-                    "parameters": [currentViewingStoryIndex+1]
-                }
-
-                if(currentRound >= rounds){
-                    // end game and return to lobby
-                    // also clean everything. (scores, currentRound)
-
-                    data["command"] = "endGame"
-                }
-                else{
-                    // start another round
-                    currentRound += 1
-
-                    data["command"] = "nextRound"
-                }
-
-                responses = {}
-
-                sendToEveryone(dataString)
-                return
+                showScoreboardAfterRound()
             }
+            return
         }
 
         name = names[currentViewingStoryIndex]
         storyTellPerson(name)
+    }
+    
+    async function showScoreboardAfterRound(){
+        data = {
+            "command": "openScoreboard",
+            "parameters": []
+        }
+        sendToEveryone(JSON.stringify(data))
+        openScore()
+    }
+
+    function nextRoundClick(){
+        data = {
+            "command": "nextRound",
+            "parameters": []
+        }
+        dataString = JSON.stringify(data)
+        if(connection == null){
+            whatToDoAfterShowingScore()
+        }
+        else{
+            connection.send(dataString)
+        }
+    }
+
+    function whatToDoAfterShowingScore(){
+        // clear the previous stuff
+        responses = {}
+
+        if(currentRound >= rounds){
+            // end game and return to lobby
+            // also clean everything. (scores, currentRound)
+            gameStarted = false
+
+            data = {
+                "command": "endGame",
+                "parameters": [currentViewingStoryIndex+1]
+            }
+            sendToEveryone(JSON.stringify(data))
+            openPregame()
+        }
+        else{
+            // start another round
+            currentRound++
+            startGame()
+        }
     }
 
 
@@ -569,6 +600,9 @@
         <textarea type="text" class="actionInput" id="tellStoryTextbox" disabled></textarea>
         <button onclick="nextResponse()" id="nextResponseButton" class="join-button">NEXT</button>
         */
+        nextResponseButton = document.getElementById("nextResponseButton")
+        nextResponseButton.disabled = true
+
         document.getElementById("tellStoryTitle").innerText = username.toUpperCase() + " ATTEMPTS TO KILL THE AI"
         storyEle = document.getElementById("tellStoryTextbox")
         storyEle.innerText = ""
@@ -581,6 +615,12 @@
 
         // play the story text
         let story = data["storyText"]
+
+        let killedMidSection = " did not kill "
+        if(data["didKillTheAI"]){ killedMidSection = " killed " }
+        story += `
+        ` + username + killedMidSection + "the AI."
+
         let i = 0
         storyInterval = setInterval(()=>{
             i++
@@ -588,6 +628,7 @@
 
             if(i >= story.length){
                 // story is over
+                nextResponseButton.disabled = false
                 clearInterval(storyInterval)
             }
         }, 50)
@@ -771,6 +812,24 @@
                     names = jsonData["parameters"][0]
                 }
                 break
+            case "nextRound":
+                if(connection == null){
+                    // if we're host. then do next round stuff
+                    whatToDoAfterShowingScore()
+                }
+                break
+            case "openScoreboard":
+                currentRound++
+                openScore()
+                break
+            case "endGame":
+                openPregame()
+                break
+            case "gameInProgressPleaseLeave":
+                if(connection!=null){
+                    connection.close()
+                }
+                break
         }
         console.log(jsonData)
     }
@@ -787,6 +846,14 @@
     }
 
     function onConnection(conn){
+        if(gameStarted){
+            conn.send(JSON.stringify({
+                "command": "gameInProgressPleaseLeave",
+                "parameters": []
+            }))
+            return
+        }
+
         id = conn.connectionId
         conn.on('open', ()=>{
             addPlayer(conn)
